@@ -1,32 +1,34 @@
-/* Majed Group — monthly & yearly reports, charts and expenses */
+/* Majed Group — monthly & yearly management reports (all figures come from the journal) */
 (function () {
   const t = MG.t, ic = MG.ic, esc = MG.esc, money = MG.money;
   const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  const CATS = ['material', 'labor', 'transport', 'install', 'rent', 'salary', 'utilities', 'tools', 'other'];
+  MG.iso = iso;
 
   MG.periodStats = function (from, to) {
     const a = iso(from), b = iso(to), inR = s => s && s >= a && s < b;
-    const res = { sales: 0, gross: 0, count: 0, collected: 0, expenses: 0, pipeline: 0, quotes: 0,
-      sec: { alu: 0, iron: 0 }, secCollected: { alu: 0, iron: 0, mixed: 0 }, cats: {}, projects: [] };
+    const S = MG.sums(a, b);
+    const nat = (id, credit) => { const x = S[id] || { dr: 0, cr: 0 }; return credit ? x.cr - x.dr : x.dr - x.cr; };
+    const res = { sec: { alu: nat('rev:alu', 1), iron: nat('rev:iron', 1) }, otherIncome: nat('rev:other', 1), cats: {}, projects: [], count: 0, pipeline: 0, quotes: 0 };
+    res.sales = res.sec.alu + res.sec.iron;
+    res.cogs = 0; res.opex = 0;
+    MG.db.settings.categories.forEach(c => {
+      const v = nat('exp:' + c.id);
+      if (Math.abs(v) > 0.004) { res.cats[c.id] = v; if (c.group === 'cogs') res.cogs += v; else res.opex += v; }
+    });
+    res.expenses = res.cogs + res.opex;
+    res.gross = res.sales - res.cogs;
+    res.net = res.sales + res.otherIncome - res.expenses;
+    // cash movement (all cash/bank accounts, transfers and opening balances excluded)
+    res.cashIn = 0; res.cashOut = 0; res.collected = 0;
+    MG.journal().forEach(e => {
+      if (!inR(e.date) || e.src.t === 'transfer' || e.ref === 'OB') return;
+      e.lines.forEach(l => { if (l.acc.startsWith('acc:')) { res.cashIn += l.dr; res.cashOut += l.cr; if (e.src.t === 'payment') res.collected += l.dr; } });
+    });
     MG.db.projects.forEach(p => {
       if (!inR(p.date)) return;
       const T = MG.projectTotals(p);
-      if (p.status === 'active' || p.status === 'done') {
-        res.sales += T.net; res.gross += T.net - T.estCost; res.count++;
-        const f = T.subtotal > 0 ? T.net / T.subtotal : 0;
-        p.items.forEach((it, i) => { res.sec[it.section] += T.rows[i].total * f; });
-        res.projects.push({ p, T });
-      } else if (p.status === 'quote') { res.pipeline += T.net; res.quotes++; res.projects.push({ p, T }); }
-    });
-    MG.db.payments.forEach(x => {
-      if (!inR(x.date)) return;
-      res.collected += +x.amount || 0;
-      const p = MG.getProject(x.projectId); if (p) res.secCollected[p.section] += +x.amount || 0;
-    });
-    MG.db.expenses.forEach(x => {
-      if (!inR(x.date)) return;
-      res.expenses += +x.amount || 0;
-      res.cats[x.category || 'other'] = (res.cats[x.category || 'other'] || 0) + (+x.amount || 0);
+      if (p.status === 'active' || p.status === 'done') { res.count++; res.projects.push({ p, T }); }
+      else if (p.status === 'quote') { res.pipeline += T.net; res.quotes++; res.projects.push({ p, T }); }
     });
     return res;
   };
@@ -37,7 +39,7 @@
     const max = Math.max(100, ...months.map(s => Math.max(s.sales, s.expenses, s.collected)));
     const step = niceStep(max / 4), top = Math.ceil(max / step) * step;
     const cw = (W - pl - pr) / 12, bw = Math.min(18, cw * 0.3);
-    const y = v => pt + (H - pt - pb) * (1 - v / top);
+    const y = v => pt + (H - pt - pb) * (1 - Math.max(0, v) / top);
     const names = MG.monthNames();
     let s = `<svg class="chart" viewBox="0 0 ${W} ${H}" direction="ltr"><defs><linearGradient id="gGold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1d9a4"/><stop offset="1" stop-color="#a57c34"/></linearGradient></defs>`;
     for (let v = 0; v <= top; v += step) s += `<line class="gl" x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}"/><text x="${pl - 8}" y="${y(v) + 4}" text-anchor="end">${short(v)}</text>`;
@@ -67,12 +69,29 @@
       </div>`;
   };
 
+  /* Income statement block (used by reports and accounting) */
+  MG.plHtml = function (from, to) {
+    const P = MG.incomeStatement(from, to);
+    const rows = list => list.map(a => `<div class="trow"><span><span class="muted num" style="font-size:12px">${a.code}</span> ${esc(MG.nm(a.name))}</span><span class="money">${money(a.v)}</span></div>`).join('') || `<div class="trow muted"><span>—</span><span></span></div>`;
+    const pct = v => P.totalRevenue ? ` <span class="muted">(${Math.round(v / P.totalRevenue * 100)}%)</span>` : '';
+    return `<div class="totals pl">
+      <div class="pl-h">${t('revenue')}</div>${rows(P.revenue)}
+      <div class="trow sub"><span>${t('totalRevenue')}</span><span class="money">${money(P.totalRevenue)}</span></div>
+      <div class="pl-h">${t('cogs')}</div>${rows(P.cogs)}
+      <div class="trow sub"><span>${t('totalCogs')}</span><span class="money">${money(P.totalCogs)}</span></div>
+      <div class="trow sub"><span><b>${t('grossProfitAcc')}</b>${pct(P.gross)}</span><span class="money"><b>${money(P.gross)}</b></span></div>
+      <div class="pl-h">${t('opex')}</div>${rows(P.opex)}
+      <div class="trow sub"><span>${t('totalOpex')}</span><span class="money">${money(P.totalOpex)}</span></div>
+      <div class="trow big"><span>${t('netProfit')}${pct(P.net)}</span><span class="money ${P.net >= 0 ? 'pos' : 'neg'}">${money(P.net)}</span></div>
+    </div>`;
+  };
+
   /* ---------------- Reports view ---------------- */
   const rs = { mode: 'monthly', year: new Date().getFullYear(), month: new Date().getMonth() };
   MG.views.reports = function (el) {
     const years = new Set([new Date().getFullYear()]);
+    MG.journal().forEach(e => e.date && e.date > '2000' && years.add(+e.date.slice(0, 4)));
     MG.db.projects.forEach(p => p.date && years.add(+p.date.slice(0, 4)));
-    MG.db.payments.concat(MG.db.expenses).forEach(x => x.date && years.add(+x.date.slice(0, 4)));
     const from = rs.mode === 'monthly' ? new Date(rs.year, rs.month, 1) : new Date(rs.year, 0, 1);
     const to = rs.mode === 'monthly' ? new Date(rs.year, rs.month + 1, 1) : new Date(rs.year + 1, 0, 1);
     const st = MG.periodStats(from, to);
@@ -85,110 +104,69 @@
       ${rs.mode === 'monthly' ? MG.sel('m', MG.monthNames().map((n, i) => [i, n]), rs.month, 'id="m" style="width:auto"') : ''}
       ${MG.sel('y', [...years].sort((a, b) => b - a).map(y => [y, y]), rs.year, 'id="y" style="width:auto"')}
       <button class="btn" id="csv">${ic('download')} ${t('exportCsv')}</button>
-      <button class="btn btn-gold" id="pr">${ic('print')} ${t('print')}</button>`) + `<div id="rep">
+      <button class="btn btn-gold" id="pr">${ic('print')} ${t('print')}</button>`) + `
       <div class="kpis">
         <div class="kpi hl"><div class="kpi-l">${ic('trend')}${t('sales')}</div><div class="kpi-v money">${money(st.sales, 0)}</div><div class="kpi-s">${st.count} ${t('projects')} · ${t('avgProject')} <span class="money">${money(st.count ? st.sales / st.count : 0, 0)}</span></div></div>
         <div class="kpi"><div class="kpi-l">${ic('coins')}${t('collected')}</div><div class="kpi-v money">${money(st.collected, 0)}</div><div class="kpi-s">${t('pipeline')}: <span class="money">${money(st.pipeline, 0)}</span> (${st.quotes})</div></div>
-        <div class="kpi"><div class="kpi-l">${ic('wallet')}${t('expensesT')}</div><div class="kpi-v money">${money(st.expenses, 0)}</div><div class="kpi-s">${t('netCash')}: <span class="money ${st.collected - st.expenses >= 0 ? 'pos' : 'neg'}">${money(st.collected - st.expenses, 0)}</span></div></div>
-        <div class="kpi"><div class="kpi-l">${ic('chart')}${t('grossProfit')}</div><div class="kpi-v money ${st.gross >= 0 ? 'pos' : 'neg'}">${money(st.gross, 0)}</div><div class="kpi-s">${t('margin2')}: ${st.sales ? Math.round(st.gross / st.sales * 100) : 0}%</div></div>
+        <div class="kpi"><div class="kpi-l">${ic('wallet')}${t('expensesT')}</div><div class="kpi-v money">${money(st.expenses, 0)}</div><div class="kpi-s">${t('netCash')}: <span class="money ${st.cashIn - st.cashOut >= 0 ? 'pos' : 'neg'}">${money(st.cashIn - st.cashOut, 0)}</span></div></div>
+        <div class="kpi"><div class="kpi-l">${ic('chart')}${t('netProfit')}</div><div class="kpi-v money ${st.net >= 0 ? 'pos' : 'neg'}">${money(st.net, 0)}</div><div class="kpi-s">${t('margin2')}: ${st.sales ? Math.round(st.net / st.sales * 100) : 0}% · ${t('grossProfitAcc')} <span class="money">${money(st.gross, 0)}</span></div></div>
       </div>
       <div class="two-col" style="margin-bottom:18px">
-        <div class="card"><div class="card-h"><h3>${t('monthlyTrend')} · ${rs.year}</h3></div>${MG.trendChart(rs.year, rs.mode === 'monthly' ? rs.month : null)}</div>
+        <div class="cards">
+          <div class="card"><div class="card-h"><h3>${t('monthlyTrend')} · ${rs.year}</h3></div>${MG.trendChart(rs.year, rs.mode === 'monthly' ? rs.month : null)}</div>
+          <div class="card"><div class="card-h"><h3>${t('incomeStatement')}</h3><a class="btn btn-sm btn-ghost" href="#/accounting/pl">${t('accounting')}</a></div>${MG.plHtml(iso(from), iso(to))}</div>
+        </div>
         <div class="cards">
           <div class="card"><div class="card-h"><h3>${t('bySection')}</h3></div>${MG.sectionSplit(st)}</div>
           <div class="card"><div class="card-h"><h3>${t('expensesByCat')}</h3></div>
             ${Object.keys(st.cats).length ? `<div class="bd">${Object.entries(st.cats).sort((a, b) => b[1] - a[1]).map(([k, v]) =>
-              `<div class="bd-row"><span>${t('c_' + k)}</span><div class="bd-bar"><i style="width:${v / catMax * 100}%;background:var(--iron)"></i></div><span class="money">${money(v, 0)}</span></div>`).join('')}</div>` : '<p class="muted">—</p>'}
+              `<div class="bd-row"><span>${esc(MG.nm(MG.getCategory(k).name))}</span><div class="bd-bar"><i style="width:${Math.max(0, v) / catMax * 100}%;background:var(--iron)"></i></div><span class="money">${money(v, 0)}</span></div>`).join('')}</div>` : '<p class="muted">—</p>'}
           </div>
+          <div class="card"><div class="card-h"><h3>${t('cashFlow')}</h3></div><div class="totals">
+            <div class="trow"><span>${t('cashIn')}</span><span class="money pos">${money(st.cashIn)}</span></div>
+            <div class="trow"><span>${t('cashOut')}</span><span class="money neg">${money(st.cashOut)}</span></div>
+            <div class="trow big"><span>${t('netCash')}</span><span class="money">${money(st.cashIn - st.cashOut)}</span></div></div></div>
         </div>
       </div>
       <div class="card"><div class="card-h"><h3>${t('projectsInPeriod')}</h3></div>
         ${st.projects.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>${t('code')}</th><th>${t('project')}</th><th>${t('client')}</th><th>${t('section')}</th><th>${t('status')}</th>
           <th class="r">${t('total')}</th><th class="r">${t('paid')}</th><th class="r">${t('balance')}</th><th class="r">${t('profit')}</th></tr></thead><tbody>
-          ${st.projects.map(({ p, T }) => `<tr style="cursor:pointer" data-pid="${p.id}"><td class="num">${esc(p.code)}</td><td>${esc(p.name)}</td><td>${esc(p.client)}</td><td>${MG.secTag(p.section)}</td><td>${MG.stTag(p.status)}</td>
+          ${st.projects.map(({ p, T }) => `<tr style="cursor:pointer" data-pid="${p.id}"><td class="num">${esc(p.code)}</td><td>${esc(p.name)}</td><td>${esc(MG.clientName(p))}</td><td>${MG.secTag(p.section)}</td><td>${MG.stTag(p.status)} ${MG.payTag(MG.payStatus(p, T))}</td>
             <td class="r money">${money(T.total, 0)}</td><td class="r money">${money(T.paid, 0)}</td><td class="r money">${money(T.balance, 0)}</td><td class="r money ${T.profit >= 0 ? 'pos' : 'neg'}">${money(T.profit, 0)}</td></tr>`).join('')}
           </tbody><tfoot><tr><td colspan="5">${t('total')} (${t('st_active')} + ${t('st_done')})</td>
             <td class="r money">${money(sum(contracted, x => x.T.total), 0)}</td><td class="r money">${money(sum(contracted, x => x.T.paid), 0)}</td>
             <td class="r money">${money(sum(contracted, x => x.T.balance), 0)}</td><td class="r money">${money(sum(contracted, x => x.T.profit), 0)}</td></tr></tfoot></table></div>` : '<p class="muted">—</p>'}
-      </div></div>`;
+      </div>`;
 
     el.querySelectorAll('#md button').forEach(b => b.onclick = () => { rs.mode = b.dataset.v; MG.route(); });
     const m = el.querySelector('#m'); if (m) m.onchange = e => { rs.month = +e.target.value; MG.route(); };
     el.querySelector('#y').onchange = e => { rs.year = +e.target.value; MG.route(); };
     el.querySelectorAll('[data-pid]').forEach(r => r.onclick = () => MG.go('#/project/' + r.dataset.pid));
-    el.querySelector('#pr').onclick = () => {
-      const c = MG.db.settings.company;
-      MG.print(`<div class="q"><div class="q-head"><div class="q-brand"><div class="q-mark">M</div><div><div class="q-name">${esc(MG.lang === 'ar' ? c.nameAr || c.name : c.name)}</div><div class="q-sub">${t('appSub')}</div></div></div>
-        <div class="q-title"><h1>${t('reports')}</h1><div>${t(rs.mode)} · ${title}</div></div></div>
+    el.querySelector('#pr').onclick = () => MG.print(`<div class="q">${MG.docHeader(t('reports'), '', t(rs.mode) + ' · ' + title)}
         <table><tbody>
           <tr><td>${t('sales')}</td><td class="r money">${money(st.sales)}</td><td>${t('alu')}</td><td class="r money">${money(st.sec.alu)}</td></tr>
           <tr><td>${t('collected')}</td><td class="r money">${money(st.collected)}</td><td>${t('iron')}</td><td class="r money">${money(st.sec.iron)}</td></tr>
-          <tr><td>${t('expensesT')}</td><td class="r money">${money(st.expenses)}</td><td>${t('pipeline')}</td><td class="r money">${money(st.pipeline)}</td></tr>
-          <tr><td><b>${t('netCash')}</b></td><td class="r money"><b>${money(st.collected - st.expenses)}</b></td><td><b>${t('grossProfit')}</b></td><td class="r money"><b>${money(st.gross)}</b></td></tr>
+          <tr><td>${t('cashIn')}</td><td class="r money">${money(st.cashIn)}</td><td>${t('cashOut')}</td><td class="r money">${money(st.cashOut)}</td></tr>
+          <tr><td>${t('pipeline')}</td><td class="r money">${money(st.pipeline)}</td><td><b>${t('netProfit')}</b></td><td class="r money"><b>${money(st.net)}</b></td></tr>
         </tbody></table>
-        <h3 style="margin:22px 0 8px">${t('expensesByCat')}</h3>
-        <table><tbody>${Object.entries(st.cats).map(([k, v]) => `<tr><td>${t('c_' + k)}</td><td class="r money">${money(v)}</td></tr>`).join('') || '<tr><td>—</td></tr>'}</tbody></table>
+        <h3 style="margin:22px 0 8px">${t('incomeStatement')}</h3>${MG.plHtml(iso(from), iso(to))}
         <h3 style="margin:22px 0 8px">${t('projectsInPeriod')}</h3>
         <table><thead><tr><th>${t('code')}</th><th>${t('project')}</th><th>${t('client')}</th><th>${t('status')}</th><th class="r">${t('total')}</th><th class="r">${t('paid')}</th><th class="r">${t('balance')}</th></tr></thead>
-        <tbody>${st.projects.map(({ p, T }) => `<tr><td class="num">${esc(p.code)}</td><td>${esc(p.name)}</td><td>${esc(p.client)}</td><td>${t('st_' + p.status)}</td><td class="r money">${money(T.total)}</td><td class="r money">${money(T.paid)}</td><td class="r money">${money(T.balance)}</td></tr>`).join('')}</tbody></table></div>`);
-    };
+        <tbody>${st.projects.map(({ p, T }) => `<tr><td class="num">${esc(p.code)}</td><td>${esc(p.name)}</td><td>${esc(MG.clientName(p))}</td><td>${t('st_' + p.status)}</td><td class="r money">${money(T.total)}</td><td class="r money">${money(T.paid)}</td><td class="r money">${money(T.balance)}</td></tr>`).join('')}</tbody></table></div>`);
     el.querySelector('#csv').onclick = () => {
-      const rows = [['code', 'project', 'client', 'section', 'status', 'date', 'total', 'paid', 'balance', 'est_cost', 'actual_expenses', 'profit']];
-      st.projects.forEach(({ p, T }) => rows.push([p.code, p.name, p.client, p.section, p.status, p.date, T.total.toFixed(2), T.paid.toFixed(2), T.balance.toFixed(2), T.estCost.toFixed(2), T.actual.toFixed(2), T.profit.toFixed(2)]));
+      const rows = [['code', 'project', 'client', 'section', 'status', 'date', 'total', 'paid', 'balance', 'est_cost', 'actual_cost', 'profit']];
+      st.projects.forEach(({ p, T }) => rows.push([p.code, p.name, MG.clientName(p), p.section, p.status, p.date, T.total.toFixed(2), T.paid.toFixed(2), T.balance.toFixed(2), T.estCost.toFixed(2), T.actual.toFixed(2), T.profit.toFixed(2)]));
       rows.push([]);
-      rows.push(['sales', st.sales.toFixed(2)], ['collected', st.collected.toFixed(2)], ['expenses', st.expenses.toFixed(2)], ['gross_profit', st.gross.toFixed(2)]);
-      const csv = '﻿' + rows.map(r => r.map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(',')).join('\n');
-      MG.download('majed-report-' + (rs.mode === 'monthly' ? rs.year + '-' + String(rs.month + 1).padStart(2, '0') : rs.year) + '.csv', csv, 'text/csv');
+      rows.push(['sales', st.sales.toFixed(2)], ['other_income', st.otherIncome.toFixed(2)], ['cogs', st.cogs.toFixed(2)], ['opex', st.opex.toFixed(2)], ['net_profit', st.net.toFixed(2)],
+        ['collected', st.collected.toFixed(2)], ['cash_in', st.cashIn.toFixed(2)], ['cash_out', st.cashOut.toFixed(2)]);
+      rows.push([]);
+      Object.entries(st.cats).forEach(([k, v]) => rows.push(['expense', MG.nm(MG.getCategory(k).name), v.toFixed(2)]));
+      MG.downloadCsv('majed-report-' + (rs.mode === 'monthly' ? rs.year + '-' + String(rs.month + 1).padStart(2, '0') : rs.year) + '.csv', rows);
     };
   };
   function sum(a, f) { return a.reduce((s, x) => s + f(x), 0); }
-
-  /* ---------------- Expenses ---------------- */
-  MG.expenseTable = function (list, showProject) {
-    if (!list.length) return '<p class="muted">—</p>';
-    const total = list.reduce((s, x) => s + (+x.amount || 0), 0);
-    return `<div class="table-wrap"><table class="t"><thead><tr><th>${t('date')}</th><th>${t('category')}</th>${showProject ? `<th>${t('expenseProject')}</th>` : ''}<th>${t('notes')}</th><th class="r">${t('amount')}</th><th></th></tr></thead><tbody>
-      ${list.map(x => { const p = x.projectId && MG.getProject(x.projectId); return `<tr><td class="num">${esc(x.date)}</td><td>${t('c_' + (x.category || 'other'))}</td>
-        ${showProject ? `<td>${p ? `<a href="#/project/${p.id}/finance">${esc(p.name || p.code)}</a>` : `<span class="muted">${t('general')}</span>`}</td>` : ''}
-        <td>${esc(x.note || '')}</td><td class="r money">${money(x.amount)}</td>
-        <td class="r" style="white-space:nowrap"><button class="btn btn-ghost btn-sm btn-icon" data-ee="${x.id}">${ic('edit')}</button><button class="btn btn-ghost btn-sm btn-icon btn-danger" data-de="${x.id}">${ic('trash')}</button></td></tr>`; }).join('')}
-      </tbody><tfoot><tr><td colspan="${showProject ? 4 : 3}">${t('total')}</td><td class="r money">${money(total)}</td><td></td></tr></tfoot></table></div>`;
-  };
-  MG.bindExpenseTable = function (root) {
-    root.querySelectorAll('[data-de]').forEach(b => b.onclick = () => MG.confirm(t('confirmDelete'), () => {
-      MG.db.expenses = MG.db.expenses.filter(x => x.id !== b.dataset.de); MG.save(); MG.route();
-    }));
-    root.querySelectorAll('[data-ee]').forEach(b => b.onclick = () => MG.expenseForm(MG.db.expenses.find(x => x.id === b.dataset.ee)));
-  };
-  MG.expenseForm = function (ex) {
-    const isNew = !ex || !ex.id;
-    const d = Object.assign({ date: MG.today(), category: 'material', amount: '', note: '', projectId: '' }, ex || {});
-    const projOpts = [['', t('general')]].concat(MG.db.projects.map(p => [p.id, p.code + ' — ' + (p.name || p.client || '')]));
-    const m = MG.modal(t('addExpense'), `<div class="grid g2">
-      ${MG.fld(t('amount'), MG.inp('amount', d.amount, 'number'))}
-      ${MG.fld(t('date'), MG.inp('date', d.date, 'date'))}
-      ${MG.fld(t('category'), MG.sel('category', CATS.map(c => [c, t('c_' + c)]), d.category))}
-      ${MG.fld(t('expenseProject'), MG.sel('projectId', projOpts, d.projectId || ''))}
-      ${MG.fld(t('notes'), MG.inp('note', d.note), 'span2')}</div>`,
-      `<button class="btn" data-close>${t('cancel')}</button><button class="btn btn-gold" id="ok">${t('save')}</button>`);
-    m.querySelector('[data-close]').onclick = () => MG.closeModal();
-    m.querySelector('#ok').onclick = () => {
-      const v = MG.formData(m);
-      if (!(v.amount > 0)) return;
-      v.projectId = v.projectId || null;
-      if (isNew) MG.db.expenses.push(Object.assign({ id: MG.uid() }, v));
-      else Object.assign(ex, v);
-      MG.save(); MG.closeModal(); MG.toast(t('saved')); MG.route();
-    };
-  };
-
-  const ef = { month: MG.today().slice(0, 7) };
-  MG.views.expenses = function (el) {
-    const list = MG.db.expenses.filter(x => !ef.month || (x.date || '').startsWith(ef.month)).sort((a, b) => a.date < b.date ? 1 : -1);
-    el.innerHTML = MG.page(t('expenses'), '', `<input type="month" class="input" id="mf" value="${ef.month}" style="width:auto">
-      <button class="btn btn-gold" id="ae">${ic('plus')} ${t('addExpense')}</button>`) + `<div class="card">${MG.expenseTable(list, true)}</div>`;
-    el.querySelector('#ae').onclick = () => MG.expenseForm();
-    el.querySelector('#mf').onchange = e => { ef.month = e.target.value; MG.route(); };
-    MG.bindExpenseTable(el);
+  MG.downloadCsv = function (name, rows) {
+    const csv = '﻿' + rows.map(r => r.map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(',')).join('\n');
+    MG.download(name, csv, 'text/csv');
   };
 })();

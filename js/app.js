@@ -46,6 +46,22 @@ MG.icons = {
   coins: P('<ellipse cx="9" cy="7" rx="6" ry="3"/><path d="M3 7v5c0 1.7 2.7 3 6 3s6-1.3 6-3V7"/><path d="M9 15v2c0 1.7 2.7 3 6 3s6-1.3 6-3v-5c0-1.7-2.7-3-6-3"/>'),
   clock: P('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
   copy: P('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
+  users: P('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/>'),
+  hardhat: P('<path d="M3 18h18v-2a9 9 0 0 0-18 0z"/><path d="M10 7V5h4v2M12 7v5"/><path d="M2 18h20v2H2z"/>'),
+  truck: P('<path d="M2 6h11v10H2zM13 10h4l4 4v2h-8"/><circle cx="6.5" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>'),
+  book: P('<path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 21.5V4.5M8 7h8M8 11h6"/>'),
+  shield: P('<path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/><path d="m9 12 2 2 4-4"/>'),
+  logout: P('<path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H3"/>'),
+  box: P('<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/>'),
+  fuel: P('<path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M4 10h10"/><path d="M14 8h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V8l-3-3"/>'),
+  bolt: P('<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>'),
+  coffee: P('<path d="M4 9h13v5a6 6 0 0 1-6 6h-1a6 6 0 0 1-6-6z"/><path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17M8 2v4M12 2v4"/>'),
+  doc: P('<path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h8M9 17h6"/>'),
+  bank: P('<path d="M3 10 12 4l9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18"/>'),
+  swap: P('<path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/>'),
+  lock: P('<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>'),
+  alert: P('<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>'),
+  check: P('<path d="m5 12 5 5 9-10"/>'),
   t_sliding: P('<rect x="2" y="4" width="20" height="16" rx="1"/><rect x="4" y="6" width="9" height="12"/><rect x="11" y="6" width="9" height="12"/><path d="M6 12h4M18 12h-4"/>'),
   t_hinged: P('<rect x="2" y="4" width="20" height="16" rx="1"/><path d="M12 4v16"/><path d="M11 6 4 12l7 6M13 6l7 6-7 6" stroke-dasharray="2 2"/>'),
   t_fixed: P('<rect x="2" y="4" width="20" height="16" rx="1"/><rect x="4" y="6" width="16" height="12"/><path d="M11 10h2M10 14h4"/>'),
@@ -61,52 +77,74 @@ MG.ic = k => MG.icons[k] || '';
 
 /* ---------- Theme ---------- */
 MG.theme = function () { return document.documentElement.getAttribute('data-theme') || 'dark'; };
-MG.toggleTheme = function () {
+MG.toggleTheme = function (noShell) {
   const t = MG.theme() === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', t);
   try { localStorage.setItem('mg.theme', t); } catch (e) {}
   document.querySelector('meta[name=theme-color]').setAttribute('content', t === 'dark' ? '#0c0d10' : '#f5f1e8');
-  MG.renderShell();
+  if (noShell !== true) { MG.renderShell(); MG.route(); }
 };
 MG.toggleLang = function () { MG.setLang(MG.lang === 'ar' ? 'en' : 'ar'); MG.renderShell(); MG.route(); };
 
 /* ---------- Shell ---------- */
+// [key, icon, href, permission or null, group]
 MG.nav = [
-  ['dashboard', 'home', '#/'],
-  ['projects', 'folder', '#/projects'],
-  ['calculator', 'calc', '#/calc'],
-  ['sketch', 'pen', '#/sketch'],
-  ['reports', 'chart', '#/reports'],
-  ['expenses', 'wallet', '#/expenses'],
-  ['settings', 'gear', '#/settings']
+  ['dashboard', 'home', '#/', null, 'main'],
+  ['projects', 'folder', '#/projects', null, 'main'],
+  ['customers', 'users', '#/customers', 'customers', 'main'],
+  ['calculator', 'calc', '#/calc', 'view.prices', 'main'],
+  ['sketch', 'pen', '#/sketch', null, 'main'],
+  ['expenses', 'wallet', '#/expenses', 'expenses', 'money'],
+  ['workers', 'hardhat', '#/workers', 'workers', 'money'],
+  ['suppliers', 'truck', '#/suppliers', 'suppliers', 'money'],
+  ['accounting', 'book', '#/accounting', 'accounting', 'money'],
+  ['reports', 'chart', '#/reports', 'reports', 'money'],
+  ['users', 'shield', '#/users', 'users', 'admin'],
+  ['settings', 'gear', '#/settings', 'settings', 'admin']
 ];
+MG.navAllowed = n => !n[3] || MG.can(n[3]);
 MG.brandHtml = function () {
   const c = MG.db.settings.company;
   const name = MG.lang === 'ar' ? (c.nameAr || c.name) : (c.name || c.nameAr);
   return `<div class="brand"><div class="brand-mark">M</div><div><div class="brand-name">${MG.esc(name)}</div><div class="brand-sub">${MG.t('appSub')}</div></div></div>`;
 };
 MG.renderShell = function () {
+  if (!MG.user) return;
   const side = document.getElementById('sidebar');
-  side.innerHTML = MG.brandHtml() + `<nav class="nav">` + MG.nav.map((n, i) =>
-    (i === 4 ? '<div class="nav-sep"></div>' : '') + `<a href="${n[2]}" data-nav="${n[0]}">${MG.ic(n[1])}<span>${MG.t(n[0])}</span></a>`).join('') + `</nav>
+  let lastGroup = '';
+  const links = MG.nav.filter(MG.navAllowed).map(n => {
+    const head = n[4] !== lastGroup ? `<div class="nav-group">${MG.t('grp_' + n[4])}</div>` : '';
+    lastGroup = n[4];
+    return head + `<a href="${n[2]}" data-nav="${n[0]}">${MG.ic(n[1])}<span>${MG.t(n[0])}</span></a>`;
+  }).join('');
+  side.innerHTML = MG.brandHtml() + (MG.canQuick() ? `<button class="btn btn-gold btn-block quick-btn" onclick="MG.quickAdd()">${MG.ic('plus')} ${MG.t('quickEntry')}</button>` : '') +
+    `<nav class="nav">${links}</nav>
     <div class="sidebar-foot">
-      <button class="btn btn-sm" onclick="MG.toggleLang()">${MG.ic('globe')} ${MG.t('language')}</button>
-      <button class="btn btn-sm btn-icon" title="${MG.t('theme')}" onclick="MG.toggleTheme()">${MG.ic(MG.theme() === 'dark' ? 'sun' : 'moon')}</button>
+      <div class="user-chip"><div class="avatar">${MG.esc((MG.user.name || '?').trim().charAt(0).toUpperCase())}</div>
+        <div style="min-width:0;cursor:pointer" onclick="MG.changePassword()" title="${MG.t('changePassword')}"><div class="u-name">${MG.esc(MG.user.name)}</div><div class="u-role">${MG.t('role_' + MG.user.role)}</div></div>
+        <button class="btn btn-ghost btn-sm btn-icon" title="${MG.t('logout')}" onclick="MG.logout()">${MG.ic('logout')}</button></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm" style="flex:1" onclick="MG.toggleLang()">${MG.ic('globe')} ${MG.t('language')}</button>
+        <button class="btn btn-sm btn-icon" title="${MG.t('theme')}" onclick="MG.toggleTheme()">${MG.ic(MG.theme() === 'dark' ? 'sun' : 'moon')}</button>
+      </div>
     </div>`;
-  document.getElementById('bottomnav').innerHTML = [
-    ['dashboard', 'home', '#/'], ['projects', 'folder', '#/projects'], ['calculator', 'calc', '#/calc', true], ['reports', 'chart', '#/reports'], ['more', 'more', '#/more']
-  ].map(n => n[3]
+  const bn = [['dashboard', 'home', '#/'], ['projects', 'folder', '#/projects']];
+  bn.push(MG.canQuick() ? ['quickEntry', 'plus', 'javascript:MG.quickAdd()', true] : ['sketch', 'pen', '#/sketch']);
+  bn.push(MG.can('customers') ? ['customers', 'users', '#/customers'] : ['calculator', 'calc', '#/calc']);
+  bn.push(['more', 'more', '#/more']);
+  document.getElementById('bottomnav').innerHTML = bn.map(n => n[3]
     ? `<a href="${n[2]}" class="fab" data-nav="${n[0]}"><span class="ic">${MG.ic(n[1])}</span><span>${MG.t(n[0])}</span></a>`
     : `<a href="${n[2]}" data-nav="${n[0]}">${MG.ic(n[1])}<span>${MG.t(n[0])}</span></a>`).join('');
   MG.markNav();
 };
 MG.markNav = function () {
   const h = location.hash.replace(/^#\/?/, '').split('/')[0] || 'dashboard';
-  const map = { '': 'dashboard', project: 'projects', calc: 'calculator', sketch: 'sketch' };
+  const map = { '': 'dashboard', project: 'projects', calc: 'calculator', customer: 'customers', supplier: 'suppliers', worker: 'workers' };
   const key = map[h] || h;
+  const inBottom = ['dashboard', 'projects', 'customers'];
   document.querySelectorAll('[data-nav]').forEach(a => {
     const k = a.getAttribute('data-nav');
-    a.classList.toggle('active', k === key || (k === 'more' && ['expenses', 'settings', 'sketch', 'more'].includes(key)));
+    a.classList.toggle('active', k === key || (k === 'more' && !inBottom.includes(key) && a.closest('#bottomnav')));
   });
 };
 
@@ -118,34 +156,73 @@ MG.page = function (title, sub, actions) {
 };
 
 /* ---------- Router ---------- */
+const ROUTES = {
+  '': ['dashboard'], dashboard: ['dashboard'], projects: ['projects'], project: ['project'],
+  calc: ['calculator', 'view.prices'], sketch: ['sketch'], reports: ['reports', 'reports'], expenses: ['expenses', 'expenses'],
+  settings: ['settings', 'settings'], more: ['more'], customers: ['customers', 'customers'], customer: ['customer', 'customers'],
+  suppliers: ['suppliers', 'suppliers'], supplier: ['supplier', 'suppliers'], workers: ['workers', 'workers'], worker: ['worker', 'workers'],
+  accounting: ['accounting', 'accounting'], users: ['users', 'users']
+};
 MG.route = function () {
+  if (!MG.user) return;
   const parts = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
   const main = document.getElementById('main');
   const r = parts[0] || '';
   MG.closeModal(true);
   try {
-    if (r === '' || r === 'dashboard') MG.views.dashboard(main);
-    else if (r === 'projects') MG.views.projects(main);
-    else if (r === 'project' && parts[1]) MG.views.project(main, parts[1], parts[2] || 'items');
-    else if (r === 'calc') MG.views.calculator(main, parts[1] || 'alu');
-    else if (r === 'sketch') MG.views.sketch(main, parts[1]);
-    else if (r === 'reports') MG.views.reports(main);
-    else if (r === 'expenses') MG.views.expenses(main);
-    else if (r === 'settings') MG.views.settings(main);
-    else if (r === 'more') MG.views.more(main);
-    else MG.views.dashboard(main);
+    const def = ROUTES[r] || ROUTES[''];
+    if (def[1] && !MG.can(def[1])) main.innerHTML = MG.page(MG.t('noAccess'), '') + `<div class="card empty">${MG.ic('shield')}<p>${MG.t('noAccessHint')}</p></div>`;
+    else MG.views[def[0]](main, parts[1], parts[2]);
   } catch (e) { console.error(e); main.innerHTML = `<div class="card">Error: ${MG.esc(e.message)}</div>`; }
   MG.markNav();
   window.scrollTo(0, 0);
 };
 MG.go = function (h) { if (location.hash === h) MG.route(); else location.hash = h; };
 
-MG.start = function () {
+let booted = false;
+MG.boot = function () {
   MG.setLang(MG.lang);
   MG.renderShell();
-  window.addEventListener('hashchange', MG.route);
+  if (!booted) { window.addEventListener('hashchange', MG.route); booted = true; }
   MG.route();
 };
+MG.start = function () {
+  MG.setLang(MG.lang);
+  if (MG.db.users.length && MG.restoreSession()) {
+    document.querySelector('.app').classList.remove('hide');
+    document.getElementById('bottomnav').classList.remove('hide');
+    MG.boot();
+  } else MG.authScreen();
+};
+
+/* ---------- Money input (USD or LBP) ---------- */
+MG.moneyInp = function (name, val, cur) {
+  return `<div class="money-in"><input class="input" name="${name}" type="number" step="any" inputmode="decimal" min="0" value="${MG.esc(val == null ? '' : val)}">
+    <select class="input" name="${name}__cur"><option value="USD" ${cur !== 'LBP' ? 'selected' : ''}>$ USD</option><option value="LBP" ${cur === 'LBP' ? 'selected' : ''}>ل.ل LBP</option></select></div>
+    <div class="money-hint" data-hint="${name}"></div>`;
+};
+/* Reads a money field from formData: returns { usd, orig, cur, rate } */
+MG.readMoney = function (v, name) {
+  const cur = v[name + '__cur'] || 'USD', orig = parseFloat(v[name]) || 0, rate = MG.db.settings.rate || 89500;
+  return { usd: Math.round(MG.toUsd(orig, cur, rate) * 100) / 100, orig, cur, rate };
+};
+document.addEventListener('input', e => {
+  const box = e.target.closest && e.target.closest('.money-in');
+  if (!box) return;
+  const inp = box.querySelector('input'), sel = box.querySelector('select');
+  const hint = box.parentElement.querySelector(`[data-hint="${inp.name}"]`);
+  if (!hint) return;
+  const v = parseFloat(inp.value) || 0;
+  hint.textContent = !v ? '' : sel.value === 'LBP' ? '≈ ' + MG.money(MG.toUsd(v, 'LBP')) : '≈ ' + MG.lbp(v);
+});
+document.addEventListener('change', e => { if (e.target.closest && e.target.closest('.money-in')) e.target.dispatchEvent(new Event('input', { bubbles: true })); });
+
+/* Blocks saving into a closed accounting period */
+MG.guardDate = function (date) {
+  if (MG.isLocked(date)) { MG.toast(MG.t('periodLocked') + ' ' + MG.db.settings.lockBefore, 'err'); return false; }
+  return true;
+};
+MG.accountOpts = () => MG.db.accounts.map(a => [a.id, MG.nm(a.name)]);
 
 /* ---------- Modal ---------- */
 MG.modal = function (title, body, footer, opts) {

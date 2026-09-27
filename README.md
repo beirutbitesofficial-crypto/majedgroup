@@ -14,4 +14,13 @@ A project management and pricing system for an aluminum and metalworks (ألمن
 - **Reports**: monthly and yearly sales, collected payments, expenses, net cash, estimated profit, split by section, a monthly chart, expenses by category, print and CSV export.
 - **Settings**: every price is editable (aluminum finishes per kg, glass per m², profiles kg/m, opening systems, steel, sheet, labor, paint prices, roofing types). Includes JSON backup and restore.
 
+### Accounting & management (v2)
+- **Users and roles**: admin, accountant, sales, worker/viewer. Each user signs in with a password. Sales users cannot see costs or profit, and workers see no prices at all. Every add, edit, delete and sign-in is written to an audit log.
+- **Quick entry**: one tap to record materials (بضاعة), worker wages (أجار شغيلة), fuel (بنزين), shop rent (أجار محل), generator/electricity, receive a customer payment, buy stock on credit, pay a supplier, give an advance. Amounts can be entered in USD or LBP, and LBP is converted at the configured rate.
+- **Fixed monthly costs**: rent, generator subscription, internet and so on. The app reminds you each month and records the cost in one tap.
+- **Customers**: every customer shows as paid in full (دفع كامل), partly paid (دفع جزء), not paid (ما دفع) or overdue (متأخر). Each has a statement with a running balance, printable receipts and a WhatsApp reminder link.
+- **Suppliers**: purchases on credit or cash, supplier payments and the balance we owe.
+- **Workers**: daily or monthly wages, advances (سلف) deducted from wages, and payment history.
+- **Double-entry books**: every transaction is posted automatically as a balanced journal entry. Includes a treasury page (cash box and bank accounts, transfers, owner capital and drawings), journal, general ledger, trial balance, income statement (P&L with direct costs vs operating expenses), balance sheet and period close (locks a month once it has been reviewed).
+
 Data is stored in the browser's localStorage on each device. Use **Settings → Export data** regularly to keep a backup.

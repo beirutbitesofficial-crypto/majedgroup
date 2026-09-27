@@ -4,12 +4,42 @@ window.MG = window.MG || {};
 MG.uid = function () { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); };
 MG.today = function () { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 
+/* Expense categories. group: cogs = direct project cost, opex = running cost of the workshop */
+MG.defaultCategories = function () {
+  return [
+    { id: 'material', name: 'بضاعة ألمنيوم / Aluminum stock', group: 'cogs', icon: 'box', quick: true },
+    { id: 'iron', name: 'بضاعة حديد / Steel stock', group: 'cogs', icon: 'box' },
+    { id: 'glass', name: 'زجاج / Glass', group: 'cogs', icon: 'window' },
+    { id: 'accessories', name: 'إكسسوار وبراغي / Accessories & fixings', group: 'cogs', icon: 'box' },
+    { id: 'paint', name: 'دهان وفرن / Paint & powder coating', group: 'cogs', icon: 'box' },
+    { id: 'labor', name: 'يد عاملة على مشروع / Project labor', group: 'cogs', icon: 'user' },
+    { id: 'subcontract', name: 'مقاول من الباطن / Subcontractor', group: 'cogs', icon: 'user' },
+    { id: 'install', name: 'تركيب / Installation', group: 'cogs', icon: 'ruler' },
+    { id: 'transport', name: 'نقل وتوصيل / Transport & delivery', group: 'cogs', icon: 'truck' },
+    { id: 'salary', name: 'أجار شغيلة ورواتب / Wages & salaries', group: 'opex', icon: 'user', quick: true },
+    { id: 'fuel', name: 'بنزين ومازوت / Fuel', group: 'opex', icon: 'fuel', quick: true },
+    { id: 'rent', name: 'أجار المحل / Shop rent', group: 'opex', icon: 'home', quick: true },
+    { id: 'utilities', name: 'موتور وكهرباء ومياه / Generator, power & water', group: 'opex', icon: 'bolt', quick: true },
+    { id: 'phone', name: 'هاتف وإنترنت / Phone & internet', group: 'opex', icon: 'phone' },
+    { id: 'tools', name: 'عدة ومعدات / Tools & equipment', group: 'opex', icon: 'gear' },
+    { id: 'maintenance', name: 'صيانة / Maintenance', group: 'opex', icon: 'gear' },
+    { id: 'car', name: 'سيارة وصيانتها / Vehicle', group: 'opex', icon: 'truck' },
+    { id: 'hospitality', name: 'ضيافة وأكل / Food & hospitality', group: 'opex', icon: 'coffee' },
+    { id: 'taxes', name: 'رسوم وضرائب / Fees & taxes', group: 'opex', icon: 'doc' },
+    { id: 'bankfees', name: 'عمولات بنك وتحويل / Bank & transfer fees', group: 'opex', icon: 'bank' },
+    { id: 'other', name: 'مصاريف أخرى / Other expenses', group: 'opex', icon: 'more', quick: true }
+  ];
+};
+
 MG.defaultSettings = function () {
   return {
     company: { name: 'Majed Group', nameAr: 'مجموعة ماجد', phone: '', address: '' },
     currency: '$',
     margin: 30,
     vat: 0,
+    rate: 89500,          // LBP per 1 USD
+    lockBefore: '',       // accounting period lock: no edits dated on/before this date
+    categories: MG.defaultCategories(),
     alu: {
       barLength: 600, waste: 8, netPrice: 9,
       profiles: [
@@ -70,24 +100,50 @@ MG.defaultSettings = function () {
 };
 
 MG.emptyDb = function () {
-  return { version: 1, settings: MG.defaultSettings(), projects: [], payments: [], expenses: [], seq: {} };
+  return {
+    version: 2, settings: MG.defaultSettings(), projects: [], payments: [], expenses: [], seq: {},
+    customers: [], suppliers: [], supPayments: [], workers: [], payroll: [], transfers: [], equity: [], recurring: [],
+    accounts: [{ id: 'cash', name: 'الصندوق / Cash box', type: 'cash', opening: 0 }, { id: 'bank', name: 'البنك / Bank', type: 'bank', opening: 0 }],
+    users: [], log: []
+  };
+};
+
+/* Bring older saved data up to the current structure without losing anything */
+MG.migrate = function (d) {
+  const def = MG.emptyDb();
+  const ds = def.settings;
+  d.settings = Object.assign(ds, d.settings || {});
+  if (!Array.isArray(d.settings.categories) || !d.settings.categories.length) d.settings.categories = MG.defaultCategories();
+  Object.keys(def).forEach(k => { if (d[k] == null) d[k] = def[k]; });
+  if (!d.accounts.length) d.accounts = def.accounts;
+  const acc0 = d.accounts[0].id;
+  d.payments.forEach(x => { if (!x.accountId) x.accountId = acc0; });
+  d.expenses.forEach(x => { if (!x.accountId) x.accountId = acc0; if (x.paid == null) x.paid = true; });
+  // link free-text project clients to customer records
+  d.projects.forEach(p => {
+    if (p.customerId || !(p.client || '').trim()) return;
+    const key = p.client.trim().toLowerCase();
+    let c = d.customers.find(x => x.name.trim().toLowerCase() === key);
+    if (!c) { c = { id: MG.uid(), name: p.client.trim(), phone: p.phone || '', address: p.location || '', notes: '', opening: 0, created: Date.now() }; d.customers.push(c); }
+    p.customerId = c.id;
+  });
+  d.payments.forEach(x => { if (!x.customerId) { const p = d.projects.find(q => q.id === x.projectId); if (p) x.customerId = p.customerId || null; } });
+  d.version = 2;
+  return d;
 };
 
 MG.db = (function () {
   try {
     const raw = localStorage.getItem('mg.db');
     if (raw) {
-      const d = JSON.parse(raw);
-      const def = MG.emptyDb();
-      d.settings = Object.assign(def.settings, d.settings || {});
-      d.projects = d.projects || []; d.payments = d.payments || []; d.expenses = d.expenses || []; d.seq = d.seq || {};
-      return d;
+      return MG.migrate(JSON.parse(raw));
     }
   } catch (e) { console.error(e); }
   return MG.emptyDb();
 })();
 
 MG.save = function () {
+  MG.db.__rev = (MG.db.__rev || 0) + 1;
   try { localStorage.setItem('mg.db', JSON.stringify(MG.db)); return true; }
   catch (e) { MG.toast && MG.toast(MG.t('storageFull'), 'err'); return false; }
 };
@@ -112,12 +168,42 @@ MG.newProject = function (data) {
   return p;
 };
 
-MG.deleteProject = function (id) {
-  MG.db.projects = MG.db.projects.filter(p => p.id !== id);
-  MG.db.payments = MG.db.payments.filter(x => x.projectId !== id);
-  MG.db.expenses = MG.db.expenses.filter(x => x.projectId !== id);
-  MG.save();
+/* A project that already has money recorded against it cannot be deleted — it must be cancelled,
+   so the books never lose a receipt or an expense. */
+MG.projectHasMoney = function (id) {
+  return MG.db.payments.some(x => x.projectId === id) || MG.db.expenses.some(x => x.projectId === id) || MG.db.payroll.some(x => x.projectId === id);
 };
+MG.deleteProject = function (id) {
+  if (MG.projectHasMoney(id)) return false;
+  MG.db.projects = MG.db.projects.filter(p => p.id !== id);
+  MG.save();
+  return true;
+};
+
+MG.getCustomer = id => MG.db.customers.find(c => c.id === id);
+MG.getSupplier = id => MG.db.suppliers.find(c => c.id === id);
+MG.getWorker = id => MG.db.workers.find(c => c.id === id);
+MG.getAccount = id => MG.db.accounts.find(c => c.id === id);
+MG.getCategory = id => MG.db.settings.categories.find(c => c.id === id) || { id, name: id, group: 'opex' };
+MG.findOrCreateCustomer = function (name, phone, address) {
+  name = (name || '').trim();
+  if (!name) return null;
+  let c = MG.db.customers.find(x => x.name.trim().toLowerCase() === name.toLowerCase());
+  if (!c) { c = { id: MG.uid(), name, phone: phone || '', address: address || '', notes: '', opening: 0, created: Date.now() }; MG.db.customers.push(c); }
+  else if (phone && !c.phone) c.phone = phone;
+  return c;
+};
+
+/* Is a date inside a locked (closed) accounting period? */
+MG.isLocked = function (date) { const L = MG.db.settings.lockBefore; return !!(L && date && date <= L); };
+
+/* Amount entry in USD or LBP. Returns USD value and keeps the original. */
+MG.toUsd = function (amount, cur, rate) {
+  amount = parseFloat(amount) || 0;
+  if (cur === 'LBP') return amount / (parseFloat(rate) || MG.db.settings.rate || 89500);
+  return amount;
+};
+MG.lbp = function (usd) { return Math.round((usd || 0) * (MG.db.settings.rate || 89500)).toLocaleString('en-US') + ' ل.ل'; };
 
 MG.fmt = function (n, dec) {
   n = Number(n) || 0;

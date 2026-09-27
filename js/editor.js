@@ -102,6 +102,8 @@
     MG.renderEditor(m.querySelector('#ed'), { item, margin: p.margin, priceEl: m.querySelector('#lp') });
     m.querySelector('[data-close]').onclick = () => MG.closeModal();
     m.querySelector('#ok').onclick = () => {
+      if (!MG.canEditInvoice(p)) return;
+      MG.log(isNew ? 'item.add' : 'item.edit', p.code + ' — ' + MG.itemTitle(item));
       if (isNew) p.items.push(item);
       else { const i = p.items.findIndex(x => x.id === item.id); p.items[i] = item; }
       if (p.section !== 'mixed' && p.items.some(x => x.section !== p.section)) p.section = 'mixed';
@@ -134,6 +136,7 @@
     el.querySelector('#cm').oninput = e => { calcState.margin = state.margin = parseFloat(e.target.value) || 0; el.querySelector('#ef').dispatchEvent(new Event('input')); };
     el.querySelector('#rs').onclick = () => { calcState[section] = null; MG.route(); };
     el.querySelector('#ap').onclick = () => pickProject(p => {
+      if (!MG.canEditInvoice(p)) return;
       const copy = JSON.parse(JSON.stringify(item)); copy.id = MG.uid();
       p.items.push(copy);
       if (p.section !== 'mixed' && p.section !== copy.section) p.section = p.items.every(x => x.section === copy.section) ? copy.section : 'mixed';

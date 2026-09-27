@@ -199,7 +199,8 @@ MG.projectTotals = function (p) {
   const vatAmt = net * num(p.vat) / 100;
   const total = net + vatAmt;
   const paid = MG.db.payments.filter(x => x.projectId === p.id).reduce((s, x) => s + num(x.amount), 0);
-  const actual = MG.db.expenses.filter(x => x.projectId === p.id).reduce((s, x) => s + num(x.amount), 0);
+  const actual = MG.db.expenses.filter(x => x.projectId === p.id).reduce((s, x) => s + num(x.amount), 0)
+    + MG.db.payroll.filter(x => x.projectId === p.id && x.type !== 'advance').reduce((s, x) => s + num(x.amount), 0);
   return { rows, subtotal, discount, net, vatAmt, total, estCost, weight, paid, balance: total - paid, actual,
     profit: net - (actual > 0 ? actual : estCost) };
 };
