@@ -1,5 +1,5 @@
+import { MG } from './mg.js';
 /* Majed Group — automatic technical drawings (SVG) for each item */
-window.MG = window.MG || {};
 
 (function () {
   function n(v, d) { v = parseFloat(v); return isFinite(v) ? v : (d || 0); }

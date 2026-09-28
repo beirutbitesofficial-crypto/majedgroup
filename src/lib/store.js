@@ -1,5 +1,5 @@
+import { MG } from './mg.js';
 /* Majed Group — data store (localStorage) */
-window.MG = window.MG || {};
 
 MG.uid = function () { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); };
 MG.today = function () { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
@@ -132,7 +132,7 @@ MG.migrate = function (d) {
   return d;
 };
 
-MG.db = (function () {
+MG.load = function () {
   try {
     const raw = localStorage.getItem('mg.db');
     if (raw) {
@@ -140,12 +140,18 @@ MG.db = (function () {
     }
   } catch (e) { console.error(e); }
   return MG.emptyDb();
-})();
+};
+MG.db = MG.load();
+/* Replace all data (backup import) */
+MG.replaceDb = function (d) { MG.db = MG.migrate(d); MG.save(); };
 
 MG.save = function () {
   MG.db.__rev = (MG.db.__rev || 0) + 1;
-  try { localStorage.setItem('mg.db', JSON.stringify(MG.db)); return true; }
-  catch (e) { MG.toast && MG.toast(MG.t('storageFull'), 'err'); return false; }
+  let ok = true;
+  try { localStorage.setItem('mg.db', JSON.stringify(MG.db)); }
+  catch (e) { MG.toast(MG.t('storageFull'), 'err'); ok = false; }
+  MG.emit();
+  return ok;
 };
 
 MG.nextCode = function (dateStr) {

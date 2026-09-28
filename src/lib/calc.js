@@ -1,5 +1,5 @@
+import { MG } from './mg.js';
 /* Majed Group — pricing engines, cut lists and project totals */
-window.MG = window.MG || {};
 
 MG.partName = function (k) {
   const ar = { frame: 'إطار', sash: 'درفة', mullion: 'قاطع', bead: 'كبس', transom: 'قاطع علوي', post: 'عامود', rail: 'عارضة',

@@ -607,3 +607,16 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; background:
 .nav-group { padding: 12px 12px 4px; }
 .nav a.active::before { inset-inline-start: -16px; top: 8px; bottom: 8px; }
 .sidebar-foot { gap: 8px; padding-top: 10px; }
+
+/* ================= React build ================= */
+#root { min-height: 100vh; }
+.preview .pv { position: absolute; inset: 30px 12px 12px; }
+.preview .pv svg { display: block; width: 100%; height: 100%; }
+.nav > div > a { display: flex; }
+.item-draw { cursor: pointer; }
+.q .qd { width: 110px; height: 80px; }
+.q .qd svg { width: 100%; height: 100%; }
+.bottomnav a { cursor: pointer; }
+.acc-cards a.kpi { text-decoration: none; }
+.topbar h1 { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.topbar .sub .phead-meta { margin-top: 0; }

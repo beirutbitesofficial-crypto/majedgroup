@@ -1,5 +1,5 @@
+import { MG } from './mg.js';
 /* Majed Group — translations (Arabic default, English optional) */
-window.MG = window.MG || {};
 
 MG.dict = {
   ar: {
@@ -139,6 +139,7 @@ MG.setLang = function (l) {
   try { localStorage.setItem('mg.lang', l); } catch (e) {}
   document.documentElement.lang = l;
   document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
+  MG.emit();
 };
 MG.monthNames = function () {
   return MG.lang === 'ar'
@@ -263,3 +264,5 @@ Object.assign(MG.dict.en, {
   cashFlow: 'Cash flow', cashIn: 'Cash in', cashOut: 'Cash out', importWarn: 'Importing will replace ALL current data with this file. Continue?',
   whish: 'Whish / OMT'
 });
+
+export const t = k => MG.t(k);

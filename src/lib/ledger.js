@@ -1,3 +1,4 @@
+import { MG } from './mg.js';
 /* Majed Group — double-entry accounting engine.
    Every business record (invoice, receipt, expense, purchase, wage, transfer, owner movement) is turned
    into a balanced journal entry. Statements are always derived from the journal, so they can never drift. */

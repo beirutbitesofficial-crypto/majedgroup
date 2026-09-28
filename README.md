@@ -1,26 +1,62 @@
 # Majed Group — مجموعة ماجد
 
-A project management and pricing system for an aluminum and metalworks (ألمنيوم وحدادة) workshop. It runs in the browser with no server or build step. Open `index.html`, or host the folder on GitHub Pages. It works on phone and desktop, in Arabic (RTL) and English, with dark and light themes.
+Project management, pricing and accounting for an aluminum and metalworks (ألمنيوم وحدادة) workshop. It is built as a **React web app** (Vite + React 19 + React Router). The UI is Arabic (RTL) or English, with dark and light themes, and works on phones and desktops.
+
+## Run locally
+```bash
+npm install
+npm run dev      # development server
+npm run build    # production build → dist/
+npm run preview  # serve the production build
+```
+
+## Deploy on Hostinger
+
+### Option A: Node.js Web App (hPanel → Websites → Add website → Node.js app → import from GitHub)
+| Setting | Value |
+|---|---|
+| Repository | `beirutbitesofficial-crypto/majedgroup` |
+| Branch | `claude/project-management-system-dg3cxo` (or `main` after merging) |
+| Framework preset | **Vite** (React) |
+| Node.js version | **22.x** (20.19 or newer) |
+| Root directory | `./` |
+| Package manager | `npm` |
+| Install command | `npm install` |
+| Build command | `npm run build` |
+| Output directory | `dist` |
+| Environment variables | none |
+
+### Option B: plain Git deployment (hPanel → Advanced → GIT)
+The GitHub Action in `.github/workflows/build-deploy-branch.yml` builds the app on every push and publishes the ready files to the **`deploy`** branch.
+| Setting | Value |
+|---|---|
+| Repository | `https://github.com/beirutbitesofficial-crypto/majedgroup.git` |
+| Branch | `deploy` |
+| Directory | empty (→ `public_html`) or a sub-folder such as `system` |
+
+For automatic updates, copy the **Webhook URL** from hPanel and add it in GitHub under **Settings → Webhooks**.
+
+### Option C: manual upload
+Run `npm run build`, then upload everything inside `dist/` into `public_html` with File Manager.
+
+Asset paths are relative (`base: './'`) and routes use `#/`, so the app works from the domain root or from any sub-folder without rewrite rules. `public/.htaccess` forces HTTPS.
 
 ## Features
-- **Projects**: client, phone, location, status (quote, in progress, completed, cancelled), payments, expenses, profit per project.
-- **Pricing calculator**
-  - Aluminum: sliding, casement, fixed, door. Enter the width, height, sashes, top fixed panel, color/finish, glass and insect net. It calculates the aluminum weight from the profiles (kg/m × price per kg), the glass area, accessories and labor, then gives the price, price per m² and cost breakdown.
-  - Metalworks (حدادة): gate, steel door, railing, window guard, pergola. It calculates the steel weight from the profiles, sheet metal, consumables, labor and paint per kg, and roofing, then gives the price and price per kg.
-- **Automatic technical drawing** for every item (SVG with dimensions, opening directions and bars). It appears in the editor, on the item cards and in the quotation.
-- **Cut list (قائمة القص)**: every piece grouped by profile and nested onto stock bars to reduce waste. It shows the bars to buy and the weight.
-- **Sketch pad (لوح الرسم)**: grid, lines and rectangles that show their length in cm automatically at the chosen scale, pen, text, eraser. Sketches are saved to a project.
-- **Quotation (عرض سعر)**: printable / PDF with drawings.
-- **Reports**: monthly and yearly sales, collected payments, expenses, net cash, estimated profit, split by section, a monthly chart, expenses by category, print and CSV export.
-- **Settings**: every price is editable (aluminum finishes per kg, glass per m², profiles kg/m, opening systems, steel, sheet, labor, paint prices, roofing types). Includes JSON backup and restore.
+- **Projects & pricing**: aluminum (sliding, casement, fixed, door) and metalworks (gate, steel door, railing, window guard, pergola). Prices are calculated from profiles in kg/m, finishes, glass, sheet, labor and paint. Each item gets an automatic technical drawing, cut lists are nested onto stock bars, and quotations can be printed or saved as PDF.
+- **Sketch pad** with automatic measurements.
+- **Users & roles**: admin, accountant, sales, worker, with an audit log.
+- **Quick entry** for materials, wages, fuel, rent, generator and more. Amounts can be entered in USD or LBP, and fixed monthly costs come with reminders.
+- **Customers**: paid in full, partly paid, not paid and overdue, with statements, receipts and WhatsApp reminders.
+- **Suppliers** (credit purchases) and **workers** (wages and advances).
+- **Double-entry accounting**: journal, general ledger, trial balance, income statement, balance sheet and period lock.
+- **Monthly and yearly reports** with CSV export.
 
-### Accounting & management (v2)
-- **Users and roles**: admin, accountant, sales, worker/viewer. Each user signs in with a password. Sales users cannot see costs or profit, and workers see no prices at all. Every add, edit, delete and sign-in is written to an audit log.
-- **Quick entry**: one tap to record materials (بضاعة), worker wages (أجار شغيلة), fuel (بنزين), shop rent (أجار محل), generator/electricity, receive a customer payment, buy stock on credit, pay a supplier, give an advance. Amounts can be entered in USD or LBP, and LBP is converted at the configured rate.
-- **Fixed monthly costs**: rent, generator subscription, internet and so on. The app reminds you each month and records the cost in one tap.
-- **Customers**: every customer shows as paid in full (دفع كامل), partly paid (دفع جزء), not paid (ما دفع) or overdue (متأخر). Each has a statement with a running balance, printable receipts and a WhatsApp reminder link.
-- **Suppliers**: purchases on credit or cash, supplier payments and the balance we owe.
-- **Workers**: daily or monthly wages, advances (سلف) deducted from wages, and payment history.
-- **Double-entry books**: every transaction is posted automatically as a balanced journal entry. Includes a treasury page (cash box and bank accounts, transfers, owner capital and drawings), journal, general ledger, trial balance, income statement (P&L with direct costs vs operating expenses), balance sheet and period close (locks a month once it has been reviewed).
+Data is stored in the browser (localStorage key `mg.db`, the same key the earlier version used). Use **Settings → Export data** for backups.
 
-Data is stored in the browser's localStorage on each device. Use **Settings → Export data** regularly to keep a backup.
+## Code layout
+```
+src/lib/        domain logic (pricing, drawings, ledger, auth, i18n, data store) — no UI
+src/components/ shared React UI (shell, modals, tables, charts)
+src/forms/      modal forms (project, item editor, money, people)
+src/pages/      one component per screen
+```
