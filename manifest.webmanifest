@@ -1,0 +1,11 @@
+{
+  "name": "Majed Group — Aluminum & Metalworks",
+  "short_name": "Majed Group",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0c0d10",
+  "theme_color": "#0c0d10",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
